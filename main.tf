@@ -1,54 +1,25 @@
-variable "http_port" {
-  type        = number
-  description = "HTTP port"
-  default     = 80
+#Creates Apache Security Group To Allow SSH and HTTP connectivity
+module "apache-sg" {
+  source = "./modules"
 }
 
-variable "ssh_port" {
-  type        = number
-  description = "SSH port for connectivity"
-  default     = 22
+#Create ASG Launch Templaate 
+resource "aws_launch_template" "asg_apache_terra_template" {
+  name        = var.asg_apache_webserver_name
+  image_id          = var.ami_id
+  instance_type     = var.instance_type
+  key_name   = var.key_pair_name
+  vpc_security_group_ids = [aws_security_group.apache-terra-sg.id]
+  user_data = filebase64("${path.root}/apache-installation-script.sh")
 }
 
-variable "cidr_ingress_block" {
-  type    = string
-  default = "0.0.0.0/0"
-}
-
-variable "vpc_id"{
-  type = string
-  default ="vpc-0e2f58aa9cad47756"
-}
-
-resource "aws_security_group" "apache-terra-sg" {
-  name   = "apache-terra-sg"
-  vpc_id = var.vpc_id
-
-  ingress {
-    description = "Allow SSH Connectiviy"
-    from_port   = var.ssh_port
-    to_port     = var.ssh_port
-    protocol    = "tcp"
-    cidr_blocks = [var.cidr_ingress_block]
-  }
-
-  ingress {
-    description = "Allow HTTP Traffic"
-    from_port   = var.http_port
-    to_port     = var.http_port
-    protocol    = "tcp"
-    cidr_blocks = [var.cidr_ingress_block]
-  }
-
-  egress {
-    description = "Allow outbound traffic"
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "Terraform-Apache-SG"
+resource "aws_autoscaling_group" "asg_terra_created_apache_group" {
+  name = "asg_terra_apache_group"
+  min_size = 2
+  max_size = 5
+  desired_capacity = 2
+  availability_zones = var.availability_zones
+  launch_template {
+    id = aws_launch_template.asg_apache_terra_template.id
   }
 }
